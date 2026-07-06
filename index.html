@@ -323,7 +323,6 @@
             if (!file) return;
             const reader = new FileReader();
             
-            // الحل هنا: ننتظر انتهاء التحميل الفعلي للملف أولاً لمنع الخطأ نهائياً
             reader.onload = function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
@@ -379,20 +378,38 @@
             const close_delim = "\r\n--" + boundary + "--";
             const reader = new FileReader();
             
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 reader.onload = async function(e) {
-                    const base64Data = btoa(reader.result);
-                    const metadata = { name: customName || file.name, parents: [folderId] };
-                    const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Transfer-Encoding: base64\r\n\r\n' + base64Data + close_delim;
-                    
-                    let response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary=' + boundary },
-                        body: multipartRequestBody
-                    });
-                    let json = await response.json();
-                    resolve(json.id);
+                    try {
+                        const base64Data = btoa(reader.result);
+                        const metadata = { name: customName || file.name, parents: [folderId] };
+                        const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Transfer-Encoding: base64\r\n\r\n' + base64Data + close_delim;
+                        
+                        let response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary=' + boundary },
+                            body: multipartRequestBody
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`Upload failed: ${response.statusText}`);
+                        }
+                        
+                        let json = await response.json();
+                        if (json.id) {
+                            resolve(json.id);
+                        } else {
+                            reject(new Error('No file ID returned'));
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
                 };
+                
+                reader.onerror = () => {
+                    reject(new Error('Failed to read file'));
+                };
+                
                 reader.readAsBinaryString(file);
             });
         }
@@ -414,7 +431,8 @@
                 const delimiter = "\r\n--" + boundary + "\r\n";
                 const close_delim = "\r\n--" + boundary + "--";
                 const metadata = { name: 'gallery_manifest.json', parents: [folderId] };
-                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(structures) + close_delim;
+                const manifestData = JSON.stringify(structures);
+                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json\r\n\r\n' + manifestData + close_delim;
                 
                 let response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                     method: 'POST',
@@ -481,8 +499,23 @@
             const fileInput = document.getElementById('structFile').files[0];
             const glbInput = document.getElementById('structGlb').files[0];
 
+            // Validation for new structures
+            if(!isEditMode) {
+                if (!imgInput) {
+                    alert("Please select an image file for new structures");
+                    submitBtn.disabled = false;
+                    return;
+                }
+                if (!fileInput) {
+                    alert("Please select a .mcstructure file for new structures");
+                    submitBtn.disabled = false;
+                    return;
+                }
+            }
+
             if(!isEditMode && structures.some(s => s.id === id)) { 
                 alert("ID configuration duplicate detected."); 
+                submitBtn.disabled = false;
                 return; 
             }
 
@@ -519,6 +552,11 @@
                             resetFormToUpload();
                             displayStructures();
                         };
+                        putReq.onerror = function() {
+                            alert("Failed to update structure in local database");
+                            submitBtn.disabled = false;
+                            submitBtn.innerText = "Update Local Structure";
+                        };
                     } else {
                         const localImgData = await fileToDataURL(imgInput);
                         const localFileData = await fileToDataURL(fileInput);
@@ -530,6 +568,11 @@
                         addReq.onsuccess = function() {
                             structures.push(newStructure);
                             finalizeFormSubmit();
+                        };
+                        addReq.onerror = function() {
+                            alert("Failed to save structure to local database");
+                            submitBtn.disabled = false;
+                            submitBtn.innerText = "Publish to Local";
                         };
                     }
                 } else {
@@ -555,6 +598,7 @@
                         await saveManifestCloud();
                         resetFormToUpload();
                         displayStructures();
+                        alert("Structure updated successfully!");
                     } else {
                         let cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
                         let cloudFileId = await uploadToDrive(fileInput, fileInput.name);
@@ -563,11 +607,12 @@
                         structures.push({ id, name, cloudImgId, cloudFileId, cloudGlbId, fileName: fileInput.name, hasGlb: !!glbInput, isLocal: false });
                         await saveManifestCloud();
                         finalizeFormSubmit();
+                        alert("Structure published successfully!");
                     }
                 }
             } catch (err) {
                 console.error("Error occurred:", err);
-                alert("An error occurred.");
+                alert("An error occurred: " + (err.message || err));
                 submitBtn.disabled = false;
                 submitBtn.innerText = isEditMode ? "Update Structure" : "Publish";
             }
@@ -613,7 +658,7 @@
                             </div>
                         </div>
                         <div class="overflow-hidden rounded-xl h-40 border border-zinc-800/50 bg-zinc-950/40 flex items-center justify-center p-1" onclick="openImageModal('${imgUrl}')">
-                            <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='https://placehold.co/400x300/12121a/666?text=Preview+Unavailable'">
+                            <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2214%22%3EImage Error%3C/text%3E%3C/svg%3E'">
                         </div>
                         <h3 class="text-base font-bold text-white mt-3 truncate">${item.name}</h3>
                         <p class="text-xs text-zinc-500 font-mono mt-1 mb-4 truncate block">📂 ${item.fileName}</p>
