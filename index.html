@@ -98,7 +98,7 @@
                         <input type="file" id="structFile" accept=".mcstructure" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-500 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-600/20 file:text-blue-400">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">3D Model (.glb File) <span class="text-zinc-500 text-xxs">(Upload here to add/update 3D)</span></label>
+                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">3D Model (.glb File) <span class="text-zinc-500 text-xxs">(Optional)</span></label>
                         <input type="file" id="structGlb" accept=".glb" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-500 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-purple-600/20 file:text-purple-400">
                     </div>
                     <button type="submit" id="submitBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg flex justify-center items-center gap-2 mt-2">
@@ -210,16 +210,29 @@
         };
         dbRequest.onerror = function(e) {
             console.error("IndexedDB error:", e);
+            alert("Failed to initialize database");
         };
 
         function gapiLoaded() { gapi.load('client', initializeGapiClient); }
-        async function initializeGapiClient() { await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }); }
+        async function initializeGapiClient() { 
+            try {
+                await gapi.client.init({ 
+                    apiKey: API_KEY, 
+                    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] 
+                }); 
+            } catch(e) {
+                console.error("GAPI init error:", e);
+            }
+        }
         
         function gisLoaded() { 
             tokenClient = google.accounts.oauth2.initTokenClient({ 
                 client_id: CLIENT_ID, scope: SCOPES, 
                 callback: (resp) => { 
-                    if (resp.error) return; 
+                    if (resp.error) {
+                        console.error("Auth error:", resp.error);
+                        return; 
+                    }
                     accessToken = resp.access_token; 
                     const expiryTime = Date.now() + (resp.expires_in * 1000);
                     localStorage.setItem('hazem_gallery_token', accessToken);
@@ -244,6 +257,10 @@
         }
 
         function handleAuthClick() { 
+            if (!tokenClient) {
+                alert("Authentication not ready yet");
+                return;
+            }
             tokenClient.requestAccessToken({prompt: currentMode === 'drive' ? 'none' : 'consent'}); 
             if(currentMode !== 'drive') switchStorageMode('drive');
         }
@@ -295,21 +312,28 @@
         }
 
         function loadLocalStructures() {
-            if (!db) return;
+            if (!db) {
+                setTimeout(loadLocalStructures, 100);
+                return;
+            }
             let transaction = db.transaction(["structures"], "readonly");
             let store = transaction.objectStore("structures");
             let request = store.getAll();
             request.onsuccess = function() {
-                structures = request.result;
+                structures = request.result || [];
                 displayStructures();
             };
             request.onerror = function() {
                 console.error("Error loading structures from IndexedDB");
+                alert("Failed to load structures");
             };
         }
 
         window.exportData = function() {
-            if (!db) return;
+            if (!db) {
+                alert("Database not ready");
+                return;
+            }
             let transaction = db.transaction(["structures"], "readonly");
             let store = transaction.objectStore("structures");
             let request = store.getAll();
@@ -321,21 +345,34 @@
                 a.href = url;
                 a.download = 'minecraft_structures_backup.json';
                 a.click();
+                URL.revokeObjectURL(url);
             };
         };
 
         window.importData = function(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            if (!db) {
+                alert("Database not ready");
+                return;
+            }
+
             const reader = new FileReader();
             
             reader.onload = function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData)) {
+                        throw new Error("Invalid format");
+                    }
+
                     let transaction = db.transaction(["structures"], "readwrite");
                     let store = transaction.objectStore("structures");
                     
-                    importedData.forEach(item => store.put(item));
+                    importedData.forEach(item => {
+                        store.put(item);
+                    });
                     
                     transaction.oncomplete = function() {
                         alert(`Successfully imported ${importedData.length} structures!`);
@@ -345,24 +382,46 @@
                         alert("Error importing data to database");
                     };
                 } catch (err) {
-                    alert("Failed to parse data. Make sure it is a valid backup file.");
+                    alert("Failed to parse data: " + err.message);
                 }
             };
+            
+            reader.onerror = function() {
+                alert("Failed to read file");
+            };
+
             reader.readAsText(file);
+            event.target.value = '';
         };
 
         async function initCloudFolder() {
+            if (!accessToken) {
+                console.error("No access token");
+                return;
+            }
+            
             gapi.client.setToken({ access_token: accessToken });
             try {
-                let res = await gapi.client.drive.files.list({ q: "name='Minecraft_Structures_Gallery' and mimeType='application/vnd.google-apps.folder' and trashed=false" });
-                if (res.result.files.length > 0) {
+                let res = await gapi.client.drive.files.list({ 
+                    q: "name='Minecraft_Structures_Gallery' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                    spaces: 'drive',
+                    pageSize: 1
+                });
+                
+                if (res.result.files && res.result.files.length > 0) {
                     folderId = res.result.files[0].id;
-                    let metaRes = await gapi.client.drive.files.list({ q: `name='gallery_manifest.json' and '${folderId}' in parents and trashed=false` });
-                    if (metaRes.result.files.length > 0) {
+                    let metaRes = await gapi.client.drive.files.list({ 
+                        q: `name='gallery_manifest.json' and '${folderId}' in parents and trashed=false`,
+                        spaces: 'drive',
+                        pageSize: 1
+                    });
+                    if (metaRes.result.files && metaRes.result.files.length > 0) {
                         manifestFileId = metaRes.result.files[0].id;
                         let fileData = await gapi.client.drive.files.get({ fileId: manifestFileId, alt: 'media' });
-                        structures = typeof fileData.result === "string" ? JSON.parse(fileData.result) : fileData.result;
-                    } else { structures = []; }
+                        structures = typeof fileData.result === "string" ? JSON.parse(fileData.result) : fileData.result || [];
+                    } else { 
+                        structures = []; 
+                    }
                 } else {
                     let folderMeta = { name: 'Minecraft_Structures_Gallery', mimeType: 'application/vnd.google-apps.folder' };
                     let folder = await gapi.client.drive.files.create({ resource: folderMeta, fields: 'id' });
@@ -370,25 +429,42 @@
                     structures = [];
                 }
                 displayStructures();
-            } catch(e) { console.error("Error connecting to Google Drive:", e); }
+            } catch(e) { 
+                console.error("Error connecting to Google Drive:", e);
+                alert("Failed to connect to Google Drive: " + e.message);
+            }
         }
 
         function fileToDataURL(file) {
             return new Promise((resolve, reject) => {
+                if (!file) {
+                    reject(new Error('No file provided'));
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onload = e => resolve(e.target.result);
                 reader.onerror = () => reject(new Error('Failed to read file'));
-                reader.readAsDataURL(file);
+                
+                try {
+                    reader.readAsDataURL(file);
+                } catch (e) {
+                    reject(e);
+                }
             });
         }
 
         async function uploadToDrive(file, customName) {
+            if (!file) throw new Error('No file to upload');
+            if (!folderId) throw new Error('Folder not initialized');
+
             const boundary = '321MinecraftSync321';
             const delimiter = "\r\n--" + boundary + "\r\n";
             const close_delim = "\r\n--" + boundary + "--";
-            const reader = new FileReader();
             
             return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
                 reader.onload = async function(e) {
                     try {
                         const base64Data = btoa(reader.result);
@@ -397,12 +473,16 @@
                         
                         let response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                             method: 'POST',
-                            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary=' + boundary },
+                            headers: { 
+                                'Authorization': 'Bearer ' + accessToken, 
+                                'Content-Type': 'multipart/related; boundary=' + boundary 
+                            },
                             body: multipartRequestBody
                         });
                         
                         if (!response.ok) {
-                            throw new Error(`Upload failed: ${response.statusText}`);
+                            const errText = await response.text();
+                            throw new Error(`Upload failed: ${response.statusText} - ${errText}`);
                         }
                         
                         let json = await response.json();
@@ -420,24 +500,39 @@
                     reject(new Error('Failed to read file'));
                 };
                 
-                reader.readAsBinaryString(file);
+                try {
+                    reader.readAsBinaryString(file);
+                } catch (e) {
+                    reject(e);
+                }
             });
         }
 
         async function deleteDriveFile(fileId) {
             if(!fileId) return;
-            try { await gapi.client.drive.files.delete({ fileId: fileId }); } catch(e) { console.log("File clean-up omitted"); }
+            try { 
+                await gapi.client.drive.files.delete({ fileId: fileId }); 
+            } catch(e) { 
+                console.log("File clean-up omitted"); 
+            }
         }
 
         async function saveManifestCloud() {
             try {
+                if (!folderId) throw new Error('Folder not initialized');
+
                 if (manifestFileId) {
                     let response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${manifestFileId}?uploadType=media`, {
                         method: 'PATCH',
-                        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Authorization': 'Bearer ' + accessToken, 
+                            'Content-Type': 'application/json' 
+                        },
                         body: JSON.stringify(structures)
                     });
-                    if (!response.ok) throw new Error('Failed to save manifest');
+                    if (!response.ok) {
+                        throw new Error(`Manifest update failed: ${response.statusText}`);
+                    }
                 } else {
                     const boundary = '321ManifestSync321';
                     const delimiter = "\r\n--" + boundary + "\r\n";
@@ -448,10 +543,16 @@
                     
                     let response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                         method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary=' + boundary },
+                        headers: { 
+                            'Authorization': 'Bearer ' + accessToken, 
+                            'Content-Type': 'multipart/related; boundary=' + boundary 
+                        },
                         body: multipartRequestBody
                     });
-                    if (!response.ok) throw new Error('Failed to create manifest');
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error(`Manifest create failed: ${response.statusText} - ${errText}`);
+                    }
                     let json = await response.json();
                     manifestFileId = json.id;
                 }
@@ -460,7 +561,6 @@
             }
         }
 
-        // COMPLETE REWRITE OF EDIT FUNCTIONALITY
         window.startEditStructure = function(id) {
             const item = structures.find(s => s.id === id);
             if (!item) {
@@ -471,21 +571,17 @@
             isEditMode = true;
             editTargetId = id;
 
-            // Update form state
             document.getElementById('cancelEditBtn').classList.remove('hidden');
             document.getElementById('structId').value = item.id;
             document.getElementById('structId').disabled = true;
             document.getElementById('structName').value = item.name;
 
-            // Make file inputs optional for edit
             document.getElementById('structImg').required = false;
             document.getElementById('structFile').required = false;
 
-            // Add helper text
             document.getElementById('imgNote').innerText = "(optional - leave empty to keep current)";
             document.getElementById('fileNote').innerText = "(optional - leave empty to keep current)";
 
-            // Update button text and styling
             document.getElementById('formActionText').innerText = currentMode === 'drive' ? "Edit Cloud Asset" : "Edit Local Asset";
             submitBtn.innerText = currentMode === 'drive' ? "Update Cloud Structure" : "Update Local Structure";
             submitBtn.className = "w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
@@ -518,13 +614,12 @@
             e.preventDefault();
 
             const id = parseInt(document.getElementById('structId').value);
-            const name = document.getElementById('structName').value;
+            const name = document.getElementById('structName').value.trim();
             const imgInput = document.getElementById('structImg').files[0];
             const fileInput = document.getElementById('structFile').files[0];
             const glbInput = document.getElementById('structGlb').files[0];
 
-            // Validation
-            if (!name.trim()) {
+            if (!name) {
                 alert("Please enter a structure name");
                 return;
             }
@@ -563,42 +658,47 @@
         });
 
         async function handleLocalSubmit(id, name, imgInput, fileInput, glbInput) {
-            return new Promise((resolve, reject) => {
-                if (!db) reject(new Error("Database not initialized"));
+            if (!db) throw new Error("Database not initialized");
 
-                const transaction = db.transaction(["structures"], "readwrite");
-                const store = transaction.objectStore("structures");
+            if (isEditMode) {
+                const existingItem = structures.find(s => s.id === editTargetId);
+                if (!existingItem) throw new Error("Item not found");
 
-                let task;
-                if (isEditMode) {
-                    // Update existing
-                    const existingItem = structures.find(s => s.id === editTargetId);
-                    if (!existingItem) reject(new Error("Item not found"));
+                let hasChanges = false;
 
-                    let updatePromise = Promise.resolve();
+                if (imgInput) {
+                    existingItem.localImgData = await fileToDataURL(imgInput);
+                    hasChanges = true;
+                }
 
-                    if (imgInput) {
-                        updatePromise = updatePromise.then(() => fileToDataURL(imgInput))
-                            .then(data => { existingItem.localImgData = data; });
-                    }
+                if (fileInput) {
+                    existingItem.localFileData = await fileToDataURL(fileInput);
+                    existingItem.fileName = fileInput.name;
+                    hasChanges = true;
+                }
 
-                    if (fileInput) {
-                        updatePromise = updatePromise.then(() => fileToDataURL(fileInput))
-                            .then(data => { existingItem.localFileData = data; existingItem.fileName = fileInput.name; });
-                    }
+                if (glbInput) {
+                    existingItem.localGlbData = await fileToDataURL(glbInput);
+                    existingItem.hasGlb = true;
+                    hasChanges = true;
+                }
 
-                    if (glbInput) {
-                        updatePromise = updatePromise.then(() => fileToDataURL(glbInput))
-                            .then(data => { existingItem.localGlbData = data; existingItem.hasGlb = true; });
-                    }
+                if (name !== existingItem.name) {
+                    existingItem.name = name;
+                    hasChanges = true;
+                }
 
-                    updatePromise.then(() => {
-                        existingItem.name = name;
-                        task = store.put(existingItem);
+                if (hasChanges) {
+                    return new Promise((resolve, reject) => {
+                        const transaction = db.transaction(["structures"], "readwrite");
+                        const store = transaction.objectStore("structures");
+                        const putRequest = store.put(existingItem);
 
-                        task.onsuccess = () => {
+                        putRequest.onsuccess = () => {
                             const index = structures.findIndex(s => s.id === editTargetId);
-                            if (index !== -1) structures[index] = existingItem;
+                            if (index !== -1) {
+                                structures[index] = existingItem;
+                            }
                             submitBtn.disabled = false;
                             submitBtn.innerText = "Update Local Structure";
                             cancelEdit();
@@ -606,39 +706,58 @@
                             alert("Structure updated successfully!");
                             resolve();
                         };
-                    }).catch(reject);
+
+                        putRequest.onerror = () => {
+                            reject(new Error("Failed to update structure in database"));
+                        };
+
+                        transaction.onerror = () => {
+                            reject(new Error("Database transaction failed"));
+                        };
+                    });
                 } else {
-                    // Create new
-                    Promise.all([
-                        fileToDataURL(imgInput),
-                        fileToDataURL(fileInput),
-                        glbInput ? fileToDataURL(glbInput) : Promise.resolve(null)
-                    ]).then(([imgData, fileData, glbData]) => {
-                        const newStructure = {
-                            id, name,
-                            localImgData: imgData,
-                            localFileData: fileData,
-                            localGlbData: glbData,
-                            fileName: fileInput.name,
-                            hasGlb: !!glbInput,
-                            isLocal: true
-                        };
-
-                        task = store.add(newStructure);
-                        task.onsuccess = () => {
-                            structures.push(newStructure);
-                            submitBtn.disabled = false;
-                            submitBtn.innerText = "Publish to Local";
-                            form.reset();
-                            displayStructures();
-                            alert("Structure published successfully!");
-                            resolve();
-                        };
-                    }).catch(reject);
+                    cancelEdit();
+                    alert("No changes made");
                 }
+            } else {
+                const imgData = await fileToDataURL(imgInput);
+                const fileData = await fileToDataURL(fileInput);
+                const glbData = glbInput ? await fileToDataURL(glbInput) : null;
 
-                transaction.onerror = () => reject(new Error("Database transaction failed"));
-            });
+                const newStructure = {
+                    id, name,
+                    localImgData: imgData,
+                    localFileData: fileData,
+                    localGlbData: glbData,
+                    fileName: fileInput.name,
+                    hasGlb: !!glbInput,
+                    isLocal: true
+                };
+
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction(["structures"], "readwrite");
+                    const store = transaction.objectStore("structures");
+                    const addRequest = store.add(newStructure);
+
+                    addRequest.onsuccess = () => {
+                        structures.push(newStructure);
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = "Publish to Local";
+                        form.reset();
+                        displayStructures();
+                        alert("Structure published successfully!");
+                        resolve();
+                    };
+
+                    addRequest.onerror = () => {
+                        reject(new Error("Failed to save structure to database"));
+                    };
+
+                    transaction.onerror = () => {
+                        reject(new Error("Database transaction failed"));
+                    };
+                });
+            }
         }
 
         async function handleCloudSubmit(id, name, imgInput, fileInput, glbInput) {
@@ -646,47 +765,55 @@
                 const existingItem = structures.find(s => s.id === editTargetId);
                 if (!existingItem) throw new Error("Item not found");
 
-                if (imgInput) {
-                    await deleteDriveFile(existingItem.cloudImgId);
-                    existingItem.cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
-                }
-                if (fileInput) {
-                    await deleteDriveFile(existingItem.cloudFileId);
-                    existingItem.cloudFileId = await uploadToDrive(fileInput, fileInput.name);
-                    existingItem.fileName = fileInput.name;
-                }
-                if (glbInput) {
-                    if (existingItem.cloudGlbId) await deleteDriveFile(existingItem.cloudGlbId);
-                    existingItem.cloudGlbId = await uploadToDrive(glbInput, `model_${id}.glb`);
-                    existingItem.hasGlb = true;
-                }
-                existingItem.name = name;
+                try {
+                    if (imgInput) {
+                        await deleteDriveFile(existingItem.cloudImgId);
+                        existingItem.cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
+                    }
+                    if (fileInput) {
+                        await deleteDriveFile(existingItem.cloudFileId);
+                        existingItem.cloudFileId = await uploadToDrive(fileInput, fileInput.name);
+                        existingItem.fileName = fileInput.name;
+                    }
+                    if (glbInput) {
+                        if (existingItem.cloudGlbId) await deleteDriveFile(existingItem.cloudGlbId);
+                        existingItem.cloudGlbId = await uploadToDrive(glbInput, `model_${id}.glb`);
+                        existingItem.hasGlb = true;
+                    }
+                    existingItem.name = name;
 
-                await saveManifestCloud();
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Update Cloud Structure";
-                cancelEdit();
-                displayStructures();
-                alert("Structure updated successfully!");
+                    await saveManifestCloud();
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "Update Cloud Structure";
+                    cancelEdit();
+                    displayStructures();
+                    alert("Structure updated successfully!");
+                } catch (err) {
+                    throw new Error("Cloud update failed: " + err.message);
+                }
             } else {
-                const cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
-                const cloudFileId = await uploadToDrive(fileInput, fileInput.name);
-                const cloudGlbId = glbInput ? await uploadToDrive(glbInput, `model_${id}.glb`) : null;
+                try {
+                    const cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
+                    const cloudFileId = await uploadToDrive(fileInput, fileInput.name);
+                    const cloudGlbId = glbInput ? await uploadToDrive(glbInput, `model_${id}.glb`) : null;
 
-                structures.push({
-                    id, name,
-                    cloudImgId, cloudFileId, cloudGlbId,
-                    fileName: fileInput.name,
-                    hasGlb: !!glbInput,
-                    isLocal: false
-                });
+                    structures.push({
+                        id, name,
+                        cloudImgId, cloudFileId, cloudGlbId,
+                        fileName: fileInput.name,
+                        hasGlb: !!glbInput,
+                        isLocal: false
+                    });
 
-                await saveManifestCloud();
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Publish to Cloud";
-                form.reset();
-                displayStructures();
-                alert("Structure published successfully!");
+                    await saveManifestCloud();
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "Publish to Cloud";
+                    form.reset();
+                    displayStructures();
+                    alert("Structure published successfully!");
+                } catch (err) {
+                    throw new Error("Cloud publish failed: " + err.message);
+                }
             }
         }
 
@@ -694,7 +821,10 @@
             const galleryContainer = document.getElementById('gallery');
             galleryContainer.innerHTML = '';
             const query = document.getElementById('searchBar').value.toLowerCase();
-            const filtered = structures.filter(s => s.name.toLowerCase().includes(query) || s.id.toString().includes(query));
+            const filtered = structures.filter(s => 
+                s.name.toLowerCase().includes(query) || 
+                s.id.toString().includes(query)
+            );
             
             document.getElementById('statsCount').innerText = structures.length;
 
@@ -722,11 +852,11 @@
                                 <button onclick="deleteStructure(${item.id})" class="text-xs bg-red-950/40 hover:bg-red-950 text-red-400 px-2.5 py-1 rounded-lg transition">Delete</button>
                             </div>
                         </div>
-                        <div class="overflow-hidden rounded-xl h-40 border border-zinc-800/50 bg-zinc-950/40 flex items-center justify-center p-1" onclick="openImageModal('${imgUrl}')">
-                            <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2214%22%3EImage Error%3C/text%3E%3C/svg%3E'">
+                        <div class="overflow-hidden rounded-xl h-40 border border-zinc-800/50 bg-zinc-950/40 flex items-center justify-center p-1 cursor-pointer" onclick="openImageModal('${imgUrl}')">
+                            <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23333%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2214%22%3EImage Error%3C/text%3E%3C/svg%3E'">
                         </div>
                         <h3 class="text-base font-bold text-white mt-3 truncate">${item.name}</h3>
-                        <p class="text-xs text-zinc-500 font-mono mt-1 mb-4 truncate block">📂 ${item.fileName}</p>
+                        <p class="text-xs text-zinc-500 font-mono mt-1 mb-4 truncate block">📂 ${item.fileName || 'N/A'}</p>
                     </div>
                     <div class="flex gap-2 text-xs font-semibold">
                         <button onclick="downloadFile(${item.id})" class="flex-1 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-2.5 rounded-xl transition">Download</button>
@@ -746,7 +876,7 @@
             if (item.isLocal) {
                 const a = document.createElement('a');
                 a.href = item.localFileData;
-                a.download = item.fileName;
+                a.download = item.fileName || `structure_${id}`;
                 a.click();
             } else {
                 window.open(`https://www.googleapis.com/drive/v3/files/${item.cloudFileId}?alt=media&key=${API_KEY}`, '_blank');
@@ -791,7 +921,7 @@
                 scene3D.add(dirLight2);
 
                 window.addEventListener('resize', () => {
-                    if(renderer3D && container.clientWidth > 0) {
+                    if(renderer3D && container && container.clientWidth > 0) {
                         camera3D.aspect = container.clientWidth / container.clientHeight;
                         camera3D.updateProjectionMatrix();
                         renderer3D.setSize(container.clientWidth, container.clientHeight);
@@ -834,7 +964,7 @@
                 document.getElementById('viewerLoading').classList.add('hidden');
             }, undefined, (error) => {
                 console.error("Error loading 3D asset:", error);
-                alert("Failed to read the 3D .glb file rendering data.");
+                alert("Failed to read the 3D .glb file: " + error.message);
                 close3DViewer();
             });
         };
@@ -855,31 +985,38 @@
                     return;
                 }
 
-                if (item.isLocal) {
-                    let transaction = db.transaction(["structures"], "readwrite");
-                    let store = transaction.objectStore("structures");
-                    store.delete(id);
-                    transaction.oncomplete = function() {
-                        structures = structures.filter(s => s.id !== id);
-                        displayStructures();
-                        if(isEditMode && editTargetId === id) cancelEdit();
-                    };
-                    transaction.onerror = function() {
-                        alert("Error deleting structure");
-                    };
-                } else {
-                    try {
+                try {
+                    if (item.isLocal) {
+                        if (!db) throw new Error("Database not initialized");
+
+                        const transaction = db.transaction(["structures"], "readwrite");
+                        const store = transaction.objectStore("structures");
+                        store.delete(id);
+
+                        transaction.oncomplete = function() {
+                            structures = structures.filter(s => s.id !== id);
+                            displayStructures();
+                            if(isEditMode && editTargetId === id) cancelEdit();
+                            alert("Structure deleted successfully!");
+                        };
+
+                        transaction.onerror = function() {
+                            throw new Error("Failed to delete structure");
+                        };
+                    } else {
                         await gapi.client.drive.files.delete({ fileId: item.cloudImgId });
                         await gapi.client.drive.files.delete({ fileId: item.cloudFileId });
                         if(item.cloudGlbId) await gapi.client.drive.files.delete({ fileId: item.cloudGlbId });
+                        
                         structures = structures.filter(s => s.id !== id);
                         await saveManifestCloud();
                         displayStructures();
                         if(isEditMode && editTargetId === id) cancelEdit();
-                    } catch(e) {
-                        console.error("Error deleting cloud files:", e);
-                        alert("Error deleting structure: " + e.message);
+                        alert("Structure deleted successfully!");
                     }
+                } catch(e) {
+                    console.error("Error deleting structure:", e);
+                    alert("Error deleting structure: " + e.message);
                 }
             }
         };
