@@ -246,7 +246,6 @@
             };
         }
 
-        // دالة تصدير البيانات (Export) للتابلت
         window.exportData = function() {
             if (!db) return;
             let transaction = db.transaction(["structures"], "readonly");
@@ -264,7 +263,6 @@
             };
         };
 
-        // دالة استيراد البيانات (Import) للهاتف
         window.importData = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -447,8 +445,9 @@
                             <span class="text-xs bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-lg font-bold">#${item.id}</span>
                             <button onclick="deleteStructure(${item.id})" class="text-xs bg-red-950/40 hover:bg-red-950 text-red-400 px-2.5 py-1 rounded-lg transition">Delete</button>
                         </div>
-                        <div class="overflow-hidden rounded-xl h-40 border border-zinc-800 bg-zinc-950" onclick="openImageModal('${imgUrl}')">
-                            <img src="${imgUrl}" alt="${item.name}" class="w-full h-full object-cover cursor-zoom-in" onerror="this.src='https://placehold.co/400x300/12121a/666?text=Preview+Unavailable'">
+                        <!-- التعديل هنا: استخدام object-contain لمنع قص الأطراف وإظهار الصورة كاملة -->
+                        <div class="overflow-hidden rounded-xl h-40 border border-zinc-800/50 bg-zinc-950/40 flex items-center justify-center p-1" onclick="openImageModal('${imgUrl}')">
+                            <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='https://placehold.co/400x300/12121a/666?text=Preview+Unavailable'">
                         </div>
                         <h3 class="text-base font-bold text-white mt-3 truncate">${item.name}</h3>
                         <p class="text-xs text-zinc-500 font-mono mt-1 mb-4 truncate block">📂 ${item.fileName}</p>
@@ -476,7 +475,7 @@
         
         window.open3DViewer = function(id) {
             let item = structures.find(s => s.id === id);
-            window.open("https://bloxelizer.com/", "_blank");
+            window.open("https://bloxelizer.com/viewer", "_blank");
             if (!item.isLocal) {
                 window.open(`https://www.googleapis.com/drive/v3/files/${item.cloudFileId}?alt=media&key=${API_KEY}`, '_self');
             }
