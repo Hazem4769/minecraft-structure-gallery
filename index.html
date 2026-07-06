@@ -6,7 +6,7 @@
     <title>Minecraft Structure Hub & Gallery (Hybrid)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700&display=swap" rel="stylesheet">
-    <!-- شحن مكتبات جوجل السحابية -->
+    <!-- مكتبات جوجل السحابية -->
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
     <style>
@@ -19,16 +19,30 @@
 <body class="p-4 md:p-8 antialiased">
 
     <!-- Cloud Sync & Storage Mode Topbar -->
-    <div class="max-w-6xl mx-auto mb-4 flex flex-wrap justify-between items-center gap-2">
+    <div class="max-w-6xl mx-auto mb-4 flex flex-wrap justify-between items-center gap-4">
         <!-- أزرار التحكم في وضع التخزين -->
-        <div class="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl">
-            <button id="localModeBtn" onclick="switchStorageMode('local')" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md">
-                💻 Localhost Mode
-            </button>
-            <button id="driveModeBtn" onclick="switchStorageMode('drive')" class="text-zinc-400 hover:text-white text-xs font-bold px-4 py-2 rounded-lg transition">
-                ☁️ Google Drive Mode
-            </button>
+        <div class="flex flex-wrap gap-2 items-center">
+            <div class="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl">
+                <button id="localModeBtn" onclick="switchStorageMode('local')" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md">
+                    💻 Localhost Mode
+                </button>
+                <button id="driveModeBtn" onclick="switchStorageMode('drive')" class="text-zinc-400 hover:text-white text-xs font-bold px-4 py-2 rounded-lg transition">
+                    ☁️ Google Drive Mode
+                </button>
+            </div>
+            
+            <!-- أزرار التصدير والاستيراد الجديدة للنقل -->
+            <div class="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl gap-1">
+                <button onclick="exportData()" class="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    📤 Export
+                </button>
+                <input type="file" id="importFile" class="hidden" onchange="importData(event)">
+                <button onclick="document.getElementById('importFile').click()" class="bg-zinc-800 hover:bg-zinc-700 text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    📥 Import
+                </button>
+            </div>
         </div>
+
         <button id="authBtn" onclick="handleAuthClick()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2">
             🔄 Connect Google Drive
         </button>
@@ -58,11 +72,9 @@
                     <h2 id="formTitle" class="text-lg font-bold text-white flex items-center gap-2">
                         <span id="statusIndicator" class="w-2 h-2 rounded-full bg-emerald-500"></span> <span id="formActionText">Upload to Local</span>
                     </h2>
-                    <button id="cancelEditBtn" onclick="resetFormState()" class="hidden text-xs text-zinc-400 hover:text-white bg-zinc-800 px-2 py-1 rounded">Cancel</button>
                 </div>
                 
                 <form id="structureForm" class="space-y-4">
-                    <input type="hidden" id="editIndex" value="">
                     <div>
                         <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Structure Number / ID</label>
                         <input type="number" id="structId" required placeholder="e.g., 1" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition">
@@ -112,9 +124,9 @@
         let folderId = null;
         let manifestFileId = null;
         
-        let currentMode = 'local'; // 'local' أو 'drive'
-        let structures = []; // مصفوفة البيانات النشطة حالياً
-        let db; // قاعدة بيانات IndexedDB للوضع المحلي
+        let currentMode = 'local'; 
+        let structures = []; 
+        let db; 
 
         const form = document.getElementById('structureForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -186,7 +198,6 @@
             }
         }
 
-        // التبديل بين محلي وجوجل درايف
         function switchStorageMode(mode) {
             currentMode = mode;
             const localBtn = document.getElementById('localModeBtn');
@@ -224,7 +235,6 @@
             }
         }
 
-        // جلب البيانات المحلية من IndexedDB
         function loadLocalStructures() {
             if (!db) return;
             let transaction = db.transaction(["structures"], "readonly");
@@ -235,6 +245,53 @@
                 displayStructures();
             };
         }
+
+        // دالة تصدير البيانات (Export) للتابلت
+        window.exportData = function() {
+            if (!db) return;
+            let transaction = db.transaction(["structures"], "readonly");
+            let store = transaction.objectStore("structures");
+            let request = store.getAll();
+            
+            request.onsuccess = function() {
+                const data = JSON.stringify(request.result);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'minecraft_structures_backup.json';
+                a.click();
+            };
+        };
+
+        // دالة استيراد البيانات (Import) للهاتف
+        window.importData = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    let transaction = db.transaction(["structures"], "readwrite");
+                    let store = transaction.objectStore("structures");
+                    
+                    importedData.forEach(item => {
+                        store.put(item); 
+                    });
+                    
+                    transaction.oncomplete = function() {
+                        alert(`Successfully imported ${importedData.length} structures!`);
+                        if (currentMode === 'local') {
+                            loadLocalStructures();
+                        }
+                    };
+                } catch (err) {
+                    alert("Failed to parse data. Make sure it is a valid backup file.");
+                }
+            };
+            reader.readAsText(file);
+        };
 
         async function initCloudFolder() {
             gapi.client.setToken({ access_token: accessToken });
@@ -262,7 +319,6 @@
             }
         }
 
-        // تحويل الملفات لـ Base64 للوضع المحلي فقط
         function fileToDataURL(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -337,7 +393,6 @@
             }
 
             if (currentMode === 'local') {
-                // حفظ البيانات محلياً في المتصفح باستخدام IndexedDB بدون إنترنت
                 const localImgData = await fileToDataURL(imgInput);
                 const localFileData = await fileToDataURL(fileInput);
 
@@ -351,7 +406,6 @@
                     finalizeFormSubmit();
                 };
             } else {
-                // الرفع على جوجل درايف
                 let cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
                 let cloudFileId = await uploadToDrive(fileInput, fileInput.name);
 
@@ -385,7 +439,6 @@
                 const card = document.createElement('div');
                 card.className = "bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 flex flex-col justify-between hover:border-zinc-700/60 transition shadow-md";
                 
-                // تحديد رابط الصورة بناءً على نوع التخزين
                 const imgUrl = item.isLocal ? item.localImgData : `https://lh3.googleusercontent.com/d/${item.cloudImgId}=s400`;
                 
                 card.innerHTML = `
@@ -412,7 +465,6 @@
         window.downloadFile = function(id) {
             let item = structures.find(s => s.id === id);
             if (item.isLocal) {
-                // تحميل من الرابط المحلي Base64
                 const a = document.createElement('a');
                 a.href = item.localFileData;
                 a.download = item.fileName;
