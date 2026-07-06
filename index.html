@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معرض بنايات ماين كرافت</title>
+    <!-- استدعاء ستايل تيلويند للتصميم السريع والمناسب للموبايل -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- رأس الصفحة -->
+    <header class="text-center my-6">
+        <h1 class="text-3xl font-bold text-green-500 mb-2">My Structure Gallery</h1>
+        <p class="text-gray-400 text-sm">اضغط على أي مبنى لتحميل ملف الـ .mcstructure أو عرضه 3D</p>
+    </header>
+
+    <!-- شبكة المعرض (تتحول تلقائياً من عمود واحد في الموبايل لـ 3 أعمدة في التابلت) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-6xl mx-auto" id="gallery">
+        <!-- الكروت هتتولد هنا تلقائياً عن طريق الجافاسكريبت بالأسفل -->
+    </div>
+
+    <script>
+        // مصفوفة البيانات المبنية على التقسيم اللي عملناه لملف "200720.jpg"
+        // هتبدأ تعدل الروابط (links) هنا لما تجهز ملفاتك
+        const structures = [
+            { id: 1, name: "Obsidian Citadel", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
+            { id: 2, name: "Grand Colosseum", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
+            { id: 3, name: "Crimson Heart Balloon", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
+            // يمكنك تكرار العناصر هنا وتغيير الروابط بسهولة من تعديل النص
+        ];
+
+        const galleryContainer = document.getElementById('gallery');
+
+        // توليد الكروت داخل الصفحة
+        structures.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between shadow-lg";
+            card.innerHTML = `
+                <div>
+                    <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-bold">#${item.id}</span>
+                    <img src="${item.img}" alt="${item.name}" class="w-full h-48 object-cover rounded-lg my-3 border border-zinc-700">
+                    <h3 class="text-lg font-semibold text-white mb-4 text-center">${item.name}</h3>
+                </div>
+                <div class="flex gap-2 text-sm font-medium">
+                    <a href="${item.file}" class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition">تحميل الملف</a>
+                    <a href="${item.view3d}" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg transition">عرض 3D</a>
+                </div>
+            `;
+            galleryContainer.appendChild(card);
+        });
+    </script>
+</body>
+</html>
