@@ -6,6 +6,12 @@
     <title>Minecraft Structure Hub & Gallery (Hybrid)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js ومستورد ملفات GLTF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
     <!-- مكتبات جوجل السحابية -->
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
@@ -20,7 +26,6 @@
 
     <!-- Cloud Sync & Storage Mode Topbar -->
     <div class="max-w-6xl mx-auto mb-4 flex flex-wrap justify-between items-center gap-4">
-        <!-- أزرار التحكم في وضع التخزين -->
         <div class="flex flex-wrap gap-2 items-center">
             <div class="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl">
                 <button id="localModeBtn" onclick="switchStorageMode('local')" class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md">
@@ -31,7 +36,6 @@
                 </button>
             </div>
             
-            <!-- أزرار التصدير والاستيراد الجديدة للنقل -->
             <div class="flex bg-zinc-900 border border-zinc-800 p-1 rounded-xl gap-1">
                 <button onclick="exportData()" class="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                     📤 Export
@@ -65,13 +69,15 @@
     <!-- Main Workspace -->
     <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <!-- Control Form -->
-        <section class="lg:col-span-1">
-            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sticky top-6 shadow-2xl">
+        <!-- Sidebar: Form & Tools -->
+        <section class="lg:col-span-1 space-y-6">
+            <!-- Control Form -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl">
                 <div class="flex justify-between items-center mb-4 border-b border-zinc-800 pb-3">
                     <h2 id="formTitle" class="text-lg font-bold text-white flex items-center gap-2">
                         <span id="statusIndicator" class="w-2 h-2 rounded-full bg-emerald-500"></span> <span id="formActionText">Upload to Local</span>
                     </h2>
+                    <button id="cancelEditBtn" onclick="resetFormToUpload()" class="text-xs text-zinc-500 hover:text-zinc-300 transition hidden">✕ Cancel</button>
                 </div>
                 
                 <form id="structureForm" class="space-y-4">
@@ -84,17 +90,29 @@
                         <input type="text" id="structName" required placeholder="e.g., Obsidian Citadel" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Display Image Cover</label>
+                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Display Image Cover <span id="imgNote" class="text-zinc-600 text-xxs lowercase"></span></label>
                         <input type="file" id="structImg" accept="image/*" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-500 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-600/20 file:text-emerald-400">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Minecraft .mcstructure File</label>
+                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Minecraft .mcstructure File <span id="fileNote" class="text-zinc-600 text-xxs lowercase"></span></label>
                         <input type="file" id="structFile" accept=".mcstructure" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-500 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-600/20 file:text-blue-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">3D Model (.glb File) <span class="text-zinc-500 text-xxs">(Upload here to add/update 3D)</span></label>
+                        <input type="file" id="structGlb" accept=".glb" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-500 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-purple-600/20 file:text-purple-400">
                     </div>
                     <button type="submit" id="submitBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg flex justify-center items-center gap-2 mt-2">
                         Publish to Local
                     </button>
                 </form>
+            </div>
+
+            <!-- Essential Tools Section -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl">
+                <h2 class="text-base font-bold text-white mb-4 border-b border-zinc-800 pb-2 flex items-center gap-2">
+                    🛠️ Essential Tools
+                </h2>
+                <div id="toolsContainer" class="space-y-2.5"></div>
             </div>
         </section>
 
@@ -103,15 +121,29 @@
             <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3">
                 <input type="text" id="searchBar" oninput="displayStructures()" placeholder="Search gallery..." class="w-full bg-zinc-950 border border-zinc-800/60 rounded-xl p-2.5 px-4 text-sm text-white focus:outline-none focus:border-zinc-700 transition">
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="gallery">
-                <!-- جلب الكروت برمجياً -->
-            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="gallery"></div>
         </section>
     </main>
 
-    <!-- Lightbox -->
+    <!-- Lightbox Images -->
     <div id="imageModal" class="fixed inset-0 bg-black/90 z-50 hidden flex flex-col items-center justify-center p-4" onclick="closeImageModal()">
         <img id="expandedImg" src="" class="max-w-4xl max-h-[85vh] object-contain rounded-xl">
+    </div>
+
+    <!-- 3D Viewer Modal -->
+    <div id="viewer3DModal" class="fixed inset-0 bg-zinc-950/95 z-50 hidden flex flex-col p-4">
+        <div class="flex justify-between items-center max-w-6xl w-full mx-auto mb-2">
+            <div>
+                <h3 id="viewerTitle" class="text-lg font-bold text-white">3D Structure Preview</h3>
+                <p class="text-xs text-zinc-400">Left click + drag to rotate | Right click to pan | Scroll to zoom</p>
+            </div>
+            <button onclick="close3DViewer()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold px-4 py-2 rounded-xl transition">✕ Close Preview</button>
+        </div>
+        <div id="canvas3DContainer" class="max-w-6xl w-full flex-1 mx-auto bg-black border border-zinc-800 rounded-2xl overflow-hidden relative">
+            <div id="viewerLoading" class="absolute inset-0 flex items-center justify-center bg-zinc-950/80 text-zinc-400 text-sm font-semibold gap-2">
+                <span class="animate-spin text-emerald-400 text-lg">⏳</span> Loading 3D Mesh Assets...
+            </div>
+        </div>
     </div>
 
     <script>
@@ -127,13 +159,45 @@
         let currentMode = 'local'; 
         let structures = []; 
         let db; 
+        
+        let isEditMode = false;
+        let editTargetId = null;
+
+        let scene3D, camera3D, renderer3D, controls3D, currentModel3D;
+
+        const tools = [
+            { name: "Holoprint", url: "https://holoprint-mc.github.io/", icon: "🔮", desc: "Structure hologram previewer" },
+            { name: "Bloxelizer", url: "https://bloxelizer.com/", icon: "🧱", desc: "3D voxel grid structure view" },
+            { name: "Glb Viewer", url: "https://www.meshy.ai/3d-tools/online-viewer/glb", icon: "📦", desc: "Online GLB model inspection" }
+        ];
 
         const form = document.getElementById('structureForm');
         const submitBtn = document.getElementById('submitBtn');
         const statusIndicator = document.getElementById('statusIndicator');
 
-        // تهيئة قاعدة البيانات المحلية IndexedDB
-        const dbRequest = indexedDB.open("MinecraftStructureDB", 1);
+        function renderTools() {
+            const container = document.getElementById('toolsContainer');
+            container.innerHTML = '';
+            tools.forEach(tool => {
+                const toolAnchor = document.createElement('a');
+                toolAnchor.href = tool.url;
+                toolAnchor.target = "_blank";
+                toolAnchor.className = "flex items-center justify-between p-3 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl transition group";
+                toolAnchor.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-lg">${tool.icon}</span>
+                        <div>
+                            <h4 class="text-sm font-bold text-zinc-200 group-hover:text-white transition">${tool.name}</h4>
+                            <p class="text-xs text-zinc-500 font-medium">${tool.desc}</p>
+                        </div>
+                    </div>
+                    <span class="text-zinc-600 group-hover:text-zinc-400 transition text-sm">➔</span>
+                `;
+                container.appendChild(toolAnchor);
+            });
+        }
+
+        const dbRequest = indexedDB.open("MinecraftStructureDB", 2); 
         dbRequest.onupgradeneeded = function(e) {
             let database = e.target.result;
             if (!database.objectStoreNames.contains("structures")) {
@@ -142,9 +206,7 @@
         };
         dbRequest.onsuccess = function(e) {
             db = e.target.result;
-            if (currentMode === 'local') {
-                loadLocalStructures();
-            }
+            if (currentMode === 'local') loadLocalStructures();
         };
 
         function gapiLoaded() { gapi.load('client', initializeGapiClient); }
@@ -152,8 +214,7 @@
         
         function gisLoaded() { 
             tokenClient = google.accounts.oauth2.initTokenClient({ 
-                client_id: CLIENT_ID, 
-                scope: SCOPES, 
+                client_id: CLIENT_ID, scope: SCOPES, 
                 callback: (resp) => { 
                     if (resp.error) return; 
                     accessToken = resp.access_token; 
@@ -181,18 +242,16 @@
 
         function handleAuthClick() { 
             tokenClient.requestAccessToken({prompt: currentMode === 'drive' ? 'none' : 'consent'}); 
-            if(currentMode !== 'drive') {
-                switchStorageMode('drive');
-            }
+            if(currentMode !== 'drive') switchStorageMode('drive');
         }
 
         async function onAuthSuccess() {
             document.getElementById('authBtn').innerText = "✅ Cloud Connected";
             document.getElementById('authBtn').className = "bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2";
             if (currentMode === 'drive') {
-                statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500 " + (isEditMode ? "" : "animate-pulse");
                 submitBtn.disabled = false;
-                submitBtn.innerText = "Publish to Cloud";
+                submitBtn.innerText = isEditMode ? "Update Cloud Structure" : "Publish to Cloud";
                 submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
                 await initCloudFolder();
             }
@@ -200,6 +259,7 @@
 
         function switchStorageMode(mode) {
             currentMode = mode;
+            resetFormToUpload();
             const localBtn = document.getElementById('localModeBtn');
             const driveBtn = document.getElementById('driveModeBtn');
             const subTitle = document.getElementById('subTitle');
@@ -211,10 +271,6 @@
                 subTitle.innerText = "Your assets are currently stored locally inside your browser (Offline-friendly)";
                 statsLabel.innerText = "Local Builds";
                 statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500";
-                document.getElementById('formActionText').innerText = "Upload to Local";
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Publish to Local";
-                submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
                 loadLocalStructures();
             } else {
                 driveBtn.className = "bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-md";
@@ -251,7 +307,6 @@
             let transaction = db.transaction(["structures"], "readonly");
             let store = transaction.objectStore("structures");
             let request = store.getAll();
-            
             request.onsuccess = function() {
                 const data = JSON.stringify(request.result);
                 const blob = new Blob([data], { type: 'application/json' });
@@ -266,23 +321,20 @@
         window.importData = function(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
+            
+            // الحل هنا: ننتظر انتهاء التحميل الفعلي للملف أولاً لمنع الخطأ نهائياً
             reader.onload = function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
                     let transaction = db.transaction(["structures"], "readwrite");
                     let store = transaction.objectStore("structures");
                     
-                    importedData.forEach(item => {
-                        store.put(item); 
-                    });
+                    importedData.forEach(item => store.put(item));
                     
                     transaction.oncomplete = function() {
                         alert(`Successfully imported ${importedData.length} structures!`);
-                        if (currentMode === 'local') {
-                            loadLocalStructures();
-                        }
+                        if (currentMode === 'local') loadLocalStructures();
                     };
                 } catch (err) {
                     alert("Failed to parse data. Make sure it is a valid backup file.");
@@ -302,9 +354,7 @@
                         manifestFileId = metaRes.result.files[0].id;
                         let fileData = await gapi.client.drive.files.get({ fileId: manifestFileId, alt: 'media' });
                         structures = typeof fileData.result === "string" ? JSON.parse(fileData.result) : fileData.result;
-                    } else {
-                        structures = [];
-                    }
+                    } else { structures = []; }
                 } else {
                     let folderMeta = { name: 'Minecraft_Structures_Gallery', mimeType: 'application/vnd.google-apps.folder' };
                     let folder = await gapi.client.drive.files.create({ resource: folderMeta, fields: 'id' });
@@ -312,9 +362,7 @@
                     structures = [];
                 }
                 displayStructures();
-            } catch(e) {
-                console.error("Error connecting to Google Drive:", e);
-            }
+            } catch(e) { console.error("Error connecting to Google Drive:", e); }
         }
 
         function fileToDataURL(file) {
@@ -349,6 +397,11 @@
             });
         }
 
+        async function deleteDriveFile(fileId) {
+            if(!fileId) return;
+            try { await gapi.client.drive.files.delete({ fileId: fileId }); } catch(e) { console.log("File clean-up omitted"); }
+        }
+
         async function saveManifestCloud() {
             if (manifestFileId) {
                 await fetch(`https://www.googleapis.com/upload/drive/v3/files/${manifestFileId}?uploadType=media`, {
@@ -373,43 +426,150 @@
             }
         }
 
+        window.startEditStructure = function(id) {
+            let item = structures.find(s => s.id === id);
+            if (!item) return;
+
+            isEditMode = true;
+            editTargetId = id;
+
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            document.getElementById('structId').value = item.id;
+            document.getElementById('structId').disabled = true; 
+            document.getElementById('structName').value = item.name;
+            
+            document.getElementById('structImg').required = false;
+            document.getElementById('structFile').required = false;
+            
+            document.getElementById('imgNote').innerText = "(leave empty to keep current)";
+            document.getElementById('fileNote').innerText = "(leave empty to keep current)";
+
+            document.getElementById('formActionText').innerText = currentMode === 'drive' ? "Edit Cloud Asset" : "Edit Local Asset";
+            submitBtn.innerText = currentMode === 'drive' ? "Update Cloud Structure" : "Update Local Structure";
+            submitBtn.className = "w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
+            statusIndicator.className = "w-2 h-2 rounded-full bg-purple-500";
+            
+            document.getElementById('structureForm').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.resetFormToUpload = function() {
+            isEditMode = false;
+            editTargetId = null;
+            form.reset();
+            
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            document.getElementById('structId').disabled = false;
+            document.getElementById('structImg').required = true;
+            document.getElementById('structFile').required = true;
+            
+            document.getElementById('imgNote').innerText = "";
+            document.getElementById('fileNote').innerText = "";
+
+            document.getElementById('formActionText').innerText = currentMode === 'drive' ? "Upload to Cloud" : "Upload to Local";
+            submitBtn.innerText = currentMode === 'drive' ? "Publish to Cloud" : "Publish to Local";
+            submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
+            statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500 " + (currentMode === 'drive' ? "animate-pulse" : "");
+            submitBtn.disabled = false;
+        };
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            submitBtn.innerText = currentMode === 'drive' ? "Uploading to Cloud..." : "Saving Locally...";
-            submitBtn.disabled = true;
-
+            
             const id = parseInt(document.getElementById('structId').value);
             const name = document.getElementById('structName').value;
             const imgInput = document.getElementById('structImg').files[0];
             const fileInput = document.getElementById('structFile').files[0];
+            const glbInput = document.getElementById('structGlb').files[0];
 
-            if(structures.some(s => s.id === id)) { 
+            if(!isEditMode && structures.some(s => s.id === id)) { 
                 alert("ID configuration duplicate detected."); 
-                submitBtn.disabled = false; 
-                submitBtn.innerText = currentMode === 'drive' ? "Publish to Cloud" : "Publish to Local"; 
                 return; 
             }
 
-            if (currentMode === 'local') {
-                const localImgData = await fileToDataURL(imgInput);
-                const localFileData = await fileToDataURL(fileInput);
+            submitBtn.disabled = true;
+            submitBtn.innerText = isEditMode ? "Applying Updates..." : (currentMode === 'drive' ? "Uploading to Cloud..." : "Saving Locally...");
 
-                let newStructure = { id, name, localImgData, localFileData, fileName: fileInput.name, isLocal: true };
-                let transaction = db.transaction(["structures"], "readwrite");
-                let store = transaction.objectStore("structures");
-                store.add(newStructure);
-                
-                transaction.oncomplete = function() {
-                    structures.push(newStructure);
-                    finalizeFormSubmit();
-                };
-            } else {
-                let cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
-                let cloudFileId = await uploadToDrive(fileInput, fileInput.name);
+            try {
+                if (currentMode === 'local') {
+                    let transaction = db.transaction(["structures"], "readwrite");
+                    let store = transaction.objectStore("structures");
 
-                structures.push({ id, name, cloudImgId, cloudFileId, fileName: fileInput.name, isLocal: false });
-                await saveManifestCloud();
-                finalizeFormSubmit();
+                    if (isEditMode) {
+                        let existingItem = structures.find(s => s.id === editTargetId);
+                        
+                        if(imgInput) existingItem.localImgData = await fileToDataURL(imgInput);
+                        if(fileInput) {
+                            existingItem.localFileData = await fileToDataURL(fileInput);
+                            existingItem.fileName = fileInput.name;
+                        }
+                        if(glbInput) {
+                            existingItem.localGlbData = await fileToDataURL(glbInput);
+                            existingItem.hasGlb = true;
+                        }
+                        existingItem.name = name;
+
+                        const cleanItem = JSON.parse(JSON.stringify(existingItem));
+                        
+                        let putReq = store.put(cleanItem);
+                        putReq.onsuccess = function() {
+                            const index = structures.findIndex(s => s.id === editTargetId);
+                            if (index !== -1) {
+                                structures[index] = cleanItem;
+                            }
+                            resetFormToUpload();
+                            displayStructures();
+                        };
+                    } else {
+                        const localImgData = await fileToDataURL(imgInput);
+                        const localFileData = await fileToDataURL(fileInput);
+                        const localGlbData = glbInput ? await fileToDataURL(glbInput) : null;
+
+                        let newStructure = { id, name, localImgData, localFileData, localGlbData, fileName: fileInput.name, hasGlb: !!glbInput, isLocal: true };
+                        
+                        let addReq = store.add(newStructure);
+                        addReq.onsuccess = function() {
+                            structures.push(newStructure);
+                            finalizeFormSubmit();
+                        };
+                    }
+                } else {
+                    if (isEditMode) {
+                        let existingItem = structures.find(s => s.id === editTargetId);
+                        
+                        if(imgInput) {
+                            await deleteDriveFile(existingItem.cloudImgId);
+                            existingItem.cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
+                        }
+                        if(fileInput) {
+                            await deleteDriveFile(existingItem.cloudFileId);
+                            existingItem.cloudFileId = await uploadToDrive(fileInput, fileInput.name);
+                            existingItem.fileName = fileInput.name;
+                        }
+                        if(glbInput) {
+                            if(existingItem.cloudGlbId) await deleteDriveFile(existingItem.cloudGlbId);
+                            existingItem.cloudGlbId = await uploadToDrive(glbInput, `model_${id}.glb`);
+                            existingItem.hasGlb = true;
+                        }
+                        existingItem.name = name;
+
+                        await saveManifestCloud();
+                        resetFormToUpload();
+                        displayStructures();
+                    } else {
+                        let cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
+                        let cloudFileId = await uploadToDrive(fileInput, fileInput.name);
+                        let cloudGlbId = glbInput ? await uploadToDrive(glbInput, `model_${id}.glb`) : null;
+
+                        structures.push({ id, name, cloudImgId, cloudFileId, cloudGlbId, fileName: fileInput.name, hasGlb: !!glbInput, isLocal: false });
+                        await saveManifestCloud();
+                        finalizeFormSubmit();
+                    }
+                }
+            } catch (err) {
+                console.error("Error occurred:", err);
+                alert("An error occurred.");
+                submitBtn.disabled = false;
+                submitBtn.innerText = isEditMode ? "Update Structure" : "Publish";
             }
         });
 
@@ -439,13 +599,19 @@
                 
                 const imgUrl = item.isLocal ? item.localImgData : `https://lh3.googleusercontent.com/d/${item.cloudImgId}=s400`;
                 
+                const view3dBtn = item.hasGlb 
+                    ? `<button onclick="open3DViewer(${item.id})" class="flex-1 text-center bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl transition">View 3D</button>`
+                    : `<button disabled class="flex-1 text-center bg-zinc-800 text-zinc-600 py-2.5 rounded-xl cursor-not-allowed text-xs">No 3D Model</button>`;
+
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-center mb-3">
                             <span class="text-xs bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-lg font-bold">#${item.id}</span>
-                            <button onclick="deleteStructure(${item.id})" class="text-xs bg-red-950/40 hover:bg-red-950 text-red-400 px-2.5 py-1 rounded-lg transition">Delete</button>
+                            <div class="flex gap-1.5">
+                                <button onclick="startEditStructure(${item.id})" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
+                                <button onclick="deleteStructure(${item.id})" class="text-xs bg-red-950/40 hover:bg-red-950 text-red-400 px-2.5 py-1 rounded-lg transition">Delete</button>
+                            </div>
                         </div>
-                        <!-- التعديل هنا: استخدام object-contain لمنع قص الأطراف وإظهار الصورة كاملة -->
                         <div class="overflow-hidden rounded-xl h-40 border border-zinc-800/50 bg-zinc-950/40 flex items-center justify-center p-1" onclick="openImageModal('${imgUrl}')">
                             <img src="${imgUrl}" alt="${item.name}" class="max-w-full max-h-full object-contain cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]" onerror="this.src='https://placehold.co/400x300/12121a/666?text=Preview+Unavailable'">
                         </div>
@@ -454,7 +620,7 @@
                     </div>
                     <div class="flex gap-2 text-xs font-semibold">
                         <button onclick="downloadFile(${item.id})" class="flex-1 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-2.5 rounded-xl transition">Download</button>
-                        <button onclick="open3DViewer(${item.id})" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl transition">View 3D</button>
+                        ${view3dBtn}
                     </div>
                 `;
                 galleryContainer.appendChild(card);
@@ -475,9 +641,95 @@
         
         window.open3DViewer = function(id) {
             let item = structures.find(s => s.id === id);
-            window.open("https://bloxelizer.com/viewer", "_blank");
-            if (!item.isLocal) {
-                window.open(`https://www.googleapis.com/drive/v3/files/${item.cloudFileId}?alt=media&key=${API_KEY}`, '_self');
+            if (!item || !item.hasGlb) return;
+
+            document.getElementById('viewerTitle').innerText = `3D Preview: ${item.name}`;
+            document.getElementById('viewer3DModal').classList.remove('hidden');
+            document.getElementById('viewerLoading').classList.remove('hidden');
+
+            const container = document.getElementById('canvas3DContainer');
+            
+            if (!scene3D) {
+                scene3D = new THREE.Scene();
+                scene3D.background = new THREE.Color(0x050508);
+
+                camera3D = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+                camera3D.position.set(10, 10, 10);
+
+                renderer3D = new THREE.WebGLRenderer({ antialias: true });
+                renderer3D.setSize(container.clientWidth, container.clientHeight);
+                renderer3D.shadowMap.enabled = true;
+                container.appendChild(renderer3D.domElement);
+
+                controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+                controls3D.enableDamping = true;
+                controls3D.dampingFactor = 0.05;
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                scene3D.add(ambientLight);
+
+                const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+                dirLight1.position.set(20, 40, 20);
+                scene3D.add(dirLight1);
+
+                const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+                dirLight2.position.set(-20, 20, -20);
+                scene3D.add(dirLight2);
+
+                window.addEventListener('resize', () => {
+                    if(renderer3D && container.clientWidth > 0) {
+                        camera3D.aspect = container.clientWidth / container.clientHeight;
+                        camera3D.updateProjectionMatrix();
+                        renderer3D.setSize(container.clientWidth, container.clientHeight);
+                    }
+                });
+
+                function animate() {
+                    requestAnimationFrame(animate);
+                    if(controls3D) controls3D.update();
+                    if(renderer3D && scene3D && camera3D) renderer3D.render(scene3D, camera3D);
+                }
+                animate();
+            } else {
+                if(currentModel3D) scene3D.remove(currentModel3D);
+                camera3D.aspect = container.clientWidth / container.clientHeight;
+                camera3D.updateProjectionMatrix();
+                renderer3D.setSize(container.clientWidth, container.clientHeight);
+            }
+
+            let glbUrl = item.isLocal ? item.localGlbData : `https://www.googleapis.com/drive/v3/files/${item.cloudGlbId}?alt=media&key=${API_KEY}`;
+
+            const loader = new THREE.GLTFLoader();
+            loader.load(glbUrl, (gltf) => {
+                currentModel3D = gltf.scene;
+                
+                const box = new THREE.Box3().setFromObject(currentModel3D);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                currentModel3D.position.x += (currentModel3D.position.x - center.x);
+                currentModel3D.position.y += (currentModel3D.position.y - center.y);
+                currentModel3D.position.z += (currentModel3D.position.z - center.z);
+
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera3D.position.set(maxDim * 1.3, maxDim * 1.3, maxDim * 1.3);
+                controls3D.target.set(0, 0, 0);
+                controls3D.update();
+
+                scene3D.add(currentModel3D);
+                document.getElementById('viewerLoading').classList.add('hidden');
+            }, undefined, (error) => {
+                console.error("Error loading 3D asset:", error);
+                alert("Failed to read the 3D .glb file rendering data.");
+                close3DViewer();
+            });
+        };
+
+        window.close3DViewer = function() {
+            document.getElementById('viewer3DModal').classList.add('hidden');
+            if(currentModel3D && scene3D) {
+                scene3D.remove(currentModel3D);
+                currentModel3D = null;
             }
         };
 
@@ -491,21 +743,26 @@
                     transaction.oncomplete = function() {
                         structures = structures.filter(s => s.id !== id);
                         displayStructures();
+                        if(isEditMode && editTargetId === id) resetFormToUpload();
                     };
                 } else {
                     try {
                         await gapi.client.drive.files.delete({ fileId: item.cloudImgId });
                         await gapi.client.drive.files.delete({ fileId: item.cloudFileId });
+                        if(item.cloudGlbId) await gapi.client.drive.files.delete({ fileId: item.cloudGlbId });
                     } catch(e){}
                     structures = structures.filter(s => s.id !== id);
                     await saveManifestCloud();
                     displayStructures();
+                    if(isEditMode && editTargetId === id) resetFormToUpload();
                 }
             }
         };
 
         window.openImageModal = function(src) { document.getElementById('expandedImg').src = src; document.getElementById('imageModal').classList.remove('hidden'); };
         window.closeImageModal = function() { document.getElementById('imageModal').classList.add('hidden'); };
+
+        renderTools();
     </script>
 </body>
 </html>
