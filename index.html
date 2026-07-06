@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>معرض بنايات ماين كرافت</title>
-    <!-- استدعاء ستايل تيلويند للتصميم السريع والمناسب للموبايل -->
+    <title>My Structure Gallery - لوحة التحكم</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
@@ -15,43 +14,143 @@
     <!-- رأس الصفحة -->
     <header class="text-center my-6">
         <h1 class="text-3xl font-bold text-green-500 mb-2">My Structure Gallery</h1>
-        <p class="text-gray-400 text-sm">اضغط على أي مبنى لتحميل ملف الـ .mcstructure أو عرضه 3D</p>
+        <p class="text-gray-400 text-sm">إدارة وإضافة بنايات ماين كرافت بسهولة من الموبايل</p>
     </header>
 
-    <!-- شبكة المعرض (تتحول تلقائياً من عمود واحد في الموبايل لـ 3 أعمدة في التابلت) -->
+    <!-- فورمة إضافة مبنى جديد (مصممة بالكامل للتاتش) -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 max-w-xl mx-auto mb-10 shadow-xl">
+        <h2 class="text-xl font-bold text-white mb-4 text-center border-b border-zinc-800 pb-2">إضافة بناية جديدة</h2>
+        <form id="structureForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">رقم المبنى (#)</label>
+                <input type="number" id="structId" required class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">اسم المبنى</label>
+                <input type="text" id="structName" required placeholder="مثال: Obsidian Citadel" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">صورة المبنى</label>
+                <input type="file" id="structImg" accept="image/*" required class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-sm text-gray-400 file:ml-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">ملف الـ .mcstructure</label>
+                <input type="file" id="structFile" accept=".mcstructure" required class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-sm text-gray-400 file:ml-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">رابط العرض 3D (Structura)</label>
+                <input type="url" id="structView3d" placeholder="https://..." class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-green-500">
+            </div>
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition shadow-lg mt-2">إضافة إلى المعرض ✨</button>
+        </form>
+    </div>
+
+    <hr class="border-zinc-800 max-w-6xl mx-auto mb-10">
+
+    <!-- شبكة عرض البنايات -->
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-6xl mx-auto" id="gallery">
-        <!-- الكروت هتتولد هنا تلقائياً عن طريق الجافاسكريبت بالأسفل -->
+        <!-- الكروت المضافة هتظهر هنا -->
     </div>
 
     <script>
-        // مصفوفة البيانات المبنية على التقسيم اللي عملناه لملف "200720.jpg"
-        // هتبدأ تعدل الروابط (links) هنا لما تجهز ملفاتك
-        const structures = [
-            { id: 1, name: "Obsidian Citadel", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
-            { id: 2, name: "Grand Colosseum", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
-            { id: 3, name: "Crimson Heart Balloon", img: "https://via.placeholder.com/300", file: "#", view3d: "#" },
-            // يمكنك تكرار العناصر هنا وتغيير الروابط بسهولة من تعديل النص
-        ];
-
+        const form = document.getElementById('structureForm');
         const galleryContainer = document.getElementById('gallery');
 
-        // توليد الكروت داخل الصفحة
-        structures.forEach(item => {
-            const card = document.createElement('div');
-            card.className = "bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between shadow-lg";
-            card.innerHTML = `
-                <div>
-                    <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-bold">#${item.id}</span>
-                    <img src="${item.img}" alt="${item.name}" class="w-full h-48 object-cover rounded-lg my-3 border border-zinc-700">
-                    <h3 class="text-lg font-semibold text-white mb-4 text-center">${item.name}</h3>
-                </div>
-                <div class="flex gap-2 text-sm font-medium">
-                    <a href="${item.file}" class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition">تحميل الملف</a>
-                    <a href="${item.view3d}" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg transition">عرض 3D</a>
-                </div>
-            `;
-            galleryContainer.appendChild(card);
+        // تحميل البنايات المحفوظة من الذاكرة أو بدء مصفوفة فارغة
+        let structures = JSON.parse(localStorage.getItem('myStructures')) || [];
+
+        // دالة لعرض البنايات في الصفحة
+        function displayStructures() {
+            galleryContainer.innerHTML = '';
+            
+            // ترتيب البنايات تصاعدياً حسب رقم التعريف (ID)
+            structures.sort((a, b) => a.id - b.id);
+
+            structures.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = "bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between shadow-lg relative group";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-bold">#${item.id}</span>
+                            <button onclick="deleteStructure(${index})" class="text-xs bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-2 py-0.5 rounded transition">حذف</button>
+                        </div>
+                        <img src="${item.imgData}" alt="${item.name}" class="w-full h-48 object-cover rounded-lg my-3 border border-zinc-700">
+                        <h3 class="text-lg font-semibold text-white mb-4 text-center">${item.name}</h3>
+                    </div>
+                    <div class="flex gap-2 text-sm font-medium">
+                        <button onclick="downloadFile('${item.fileData}', '${item.fileName}')" class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition">تحميل الملف</button>
+                        <a href="${item.view3d || '#'}" target="_blank" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg transition ${!item.view3d ? 'opacity-50 pointer-events-none' : ''}">عرض 3D</a>
+                    </div>
+                `;
+                galleryContainer.appendChild(card);
+            });
+        }
+
+        // دالة تحويل الملفات لصيغة نصية لحفظها في المتصفح (Base64)
+        function readFileAsDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // عند الضغط على زر الإضافة
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById('structId').value;
+            const name = document.getElementById('structName').value;
+            const imgFile = document.getElementById('structImg').files[0];
+            const structFile = document.getElementById('structFile').files[0];
+            const view3d = document.getElementById('structView3d').value;
+
+            try {
+                // تحويل الصورة والملف لبيانات قابلة للحفظ
+                const imgData = await readFileAsDataURL(imgFile);
+                const fileData = await readFileAsDataURL(structFile);
+
+                const newStructure = {
+                    id: parseInt(id),
+                    name: name,
+                    imgData: imgData,
+                    fileData: fileData,
+                    fileName: structFile.name,
+                    view3d: view3d
+                };
+
+                structures.push(newStructure);
+                localStorage.setItem('myStructures', JSON.stringify(structures));
+                
+                form.reset();
+                displayStructures();
+                alert('تمت إضافة البناية بنجاح إلى معرضك المنزلي! 🎉');
+            } catch (error) {
+                alert('حدث خطأ أثناء رفع الملفات، يرجى المحاولة مرة أخرى.');
+            }
         });
+
+        // دالة تحميل ملف الـ .mcstructure عند الضغط على الزر
+        function downloadFile(base64Data, fileName) {
+            const link = document.createElement('a');
+            link.href = base64Data;
+            link.download = fileName;
+            link.click();
+        }
+
+        // دالة حذف مبنى
+        window.deleteStructure = function(index) {
+            if(confirm('هل أنت متأكد من حذف هذه البناية من المعرض؟')) {
+                structures.splice(index, 1);
+                localStorage.setItem('myStructures', JSON.stringify(structures));
+                displayStructures();
+            }
+        }
+
+        // تشغيل العرض الأولي عند فتح الصفحة
+        displayStructures();
     </script>
 </body>
 </html>
