@@ -130,18 +130,86 @@
         <img id="expandedImg" src="" class="max-w-4xl max-h-[85vh] object-contain rounded-xl">
     </div>
 
-    <!-- 3D Viewer Modal -->
+    <!-- Enhanced 3D Viewer Modal -->
     <div id="viewer3DModal" class="fixed inset-0 bg-zinc-950/95 z-50 hidden flex flex-col p-4">
-        <div class="flex justify-between items-center max-w-6xl w-full mx-auto mb-2">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-center max-w-7xl w-full mx-auto mb-3">
             <div>
                 <h3 id="viewerTitle" class="text-lg font-bold text-white">3D Structure Preview</h3>
                 <p class="text-xs text-zinc-400">Left click + drag to rotate | Right click to pan | Scroll to zoom</p>
             </div>
-            <button onclick="close3DViewer()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold px-4 py-2 rounded-xl transition">✕ Close Preview</button>
+            <button onclick="close3DViewer()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold px-4 py-2 rounded-xl transition">✕ Close</button>
         </div>
-        <div id="canvas3DContainer" class="max-w-6xl w-full flex-1 mx-auto bg-black border border-zinc-800 rounded-2xl overflow-hidden relative">
+
+        <!-- Controls Panel -->
+        <div class="max-w-7xl w-full mx-auto mb-3 bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                <!-- Background Color -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Background</label>
+                    <select id="bgColorSelect" onchange="changeBackgroundColor(this.value)" class="bg-zinc-800 border border-zinc-700 text-white text-xs p-1.5 rounded-lg">
+                        <option value="black">Dark</option>
+                        <option value="white">White</option>
+                        <option value="blue">Blue</option>
+                        <option value="grid">Grid</option>
+                    </select>
+                </div>
+
+                <!-- Wireframe Toggle -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Display</label>
+                    <button onclick="toggleWireframe()" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">Wireframe</button>
+                </div>
+
+                <!-- Reset View -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">View</label>
+                    <button onclick="resetCameraView()" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">Reset</button>
+                </div>
+
+                <!-- Zoom In/Out -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Zoom</label>
+                    <div class="flex gap-1">
+                        <button onclick="zoomIn()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">+</button>
+                        <button onclick="zoomOut()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">−</button>
+                    </div>
+                </div>
+
+                <!-- Light Toggle -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Lighting</label>
+                    <button onclick="toggleLighting()" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">Toggle</button>
+                </div>
+
+                <!-- Auto Rotate -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Rotation</label>
+                    <button id="autoRotateBtn" onclick="toggleAutoRotate()" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs p-1.5 rounded-lg font-semibold">Auto</button>
+                </div>
+
+                <!-- Download Screenshot -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-zinc-400">Capture</label>
+                    <button onclick="downloadScreenshot()" class="bg-emerald-800 hover:bg-emerald-700 border border-emerald-700 text-white text-xs p-1.5 rounded-lg font-semibold">📸</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3D Canvas -->
+        <div id="canvas3DContainer" class="max-w-7xl w-full flex-1 mx-auto bg-black border border-zinc-800 rounded-2xl overflow-hidden relative">
             <div id="viewerLoading" class="absolute inset-0 flex items-center justify-center bg-zinc-950/80 text-zinc-400 text-sm font-semibold gap-2">
                 <span class="animate-spin text-emerald-400 text-lg">⏳</span> Loading 3D Mesh Assets...
+            </div>
+        </div>
+
+        <!-- Info Bar -->
+        <div class="max-w-7xl w-full mx-auto mt-3 text-xs text-zinc-500 flex justify-between">
+            <div id="modelStats" class="space-y-1">
+                <p>Vertices: <span id="vertexCount">0</span> | Triangles: <span id="triangleCount">0</span></p>
+            </div>
+            <div id="cameraStats" class="space-y-1 text-right">
+                <p>Position: <span id="camPos">0, 0, 0</span> | Zoom: <span id="zoomLevel">1x</span></p>
             </div>
         </div>
     </div>
@@ -163,7 +231,14 @@
         let isEditMode = false;
         let editTargetId = null;
 
+        // 3D Viewer State
         let scene3D, camera3D, renderer3D, controls3D, currentModel3D;
+        let wireframeMode = false;
+        let autoRotateEnabled = false;
+        let lightsEnabled = true;
+        let ambientLight, dirLight1, dirLight2;
+        let originalCameraZoom = 1;
+        let gridHelper;
 
         const tools = [
             { name: "Holoprint", url: "https://holoprint-mc.github.io/", icon: "🔮", desc: "Structure hologram previewer" },
@@ -882,6 +957,8 @@
                 window.open(`https://www.googleapis.com/drive/v3/files/${item.cloudFileId}?alt=media&key=${API_KEY}`, '_blank');
             }
         };
+
+        // ===== ENHANCED 3D VIEWER FUNCTIONS =====
         
         window.open3DViewer = function(id) {
             let item = structures.find(s => s.id === id);
@@ -894,46 +971,7 @@
             const container = document.getElementById('canvas3DContainer');
             
             if (!scene3D) {
-                scene3D = new THREE.Scene();
-                scene3D.background = new THREE.Color(0x050508);
-
-                camera3D = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-                camera3D.position.set(10, 10, 10);
-
-                renderer3D = new THREE.WebGLRenderer({ antialias: true });
-                renderer3D.setSize(container.clientWidth, container.clientHeight);
-                renderer3D.shadowMap.enabled = true;
-                container.appendChild(renderer3D.domElement);
-
-                controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
-                controls3D.enableDamping = true;
-                controls3D.dampingFactor = 0.05;
-
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-                scene3D.add(ambientLight);
-
-                const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
-                dirLight1.position.set(20, 40, 20);
-                scene3D.add(dirLight1);
-
-                const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
-                dirLight2.position.set(-20, 20, -20);
-                scene3D.add(dirLight2);
-
-                window.addEventListener('resize', () => {
-                    if(renderer3D && container && container.clientWidth > 0) {
-                        camera3D.aspect = container.clientWidth / container.clientHeight;
-                        camera3D.updateProjectionMatrix();
-                        renderer3D.setSize(container.clientWidth, container.clientHeight);
-                    }
-                });
-
-                function animate() {
-                    requestAnimationFrame(animate);
-                    if(controls3D) controls3D.update();
-                    if(renderer3D && scene3D && camera3D) renderer3D.render(scene3D, camera3D);
-                }
-                animate();
+                initializeScene(container);
             } else {
                 if(currentModel3D) scene3D.remove(currentModel3D);
                 camera3D.aspect = container.clientWidth / container.clientHeight;
@@ -942,7 +980,67 @@
             }
 
             let glbUrl = item.isLocal ? item.localGlbData : `https://www.googleapis.com/drive/v3/files/${item.cloudGlbId}?alt=media&key=${API_KEY}`;
+            loadModel(glbUrl);
+        };
 
+        function initializeScene(container) {
+            scene3D = new THREE.Scene();
+            changeBackgroundColor('black');
+
+            camera3D = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera3D.position.set(10, 10, 10);
+            originalCameraZoom = camera3D.position.length();
+
+            renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer3D.setSize(container.clientWidth, container.clientHeight);
+            renderer3D.shadowMap.enabled = true;
+            renderer3D.outputColorSpace = THREE.SRGBColorSpace;
+            container.appendChild(renderer3D.domElement);
+
+            controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+            controls3D.enableDamping = true;
+            controls3D.dampingFactor = 0.05;
+            controls3D.autoRotate = false;
+
+            // Lighting Setup
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene3D.add(ambientLight);
+
+            dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight1.position.set(20, 40, 20);
+            dirLight1.castShadow = true;
+            scene3D.add(dirLight1);
+
+            dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            dirLight2.position.set(-20, 20, -20);
+            scene3D.add(dirLight2);
+
+            window.addEventListener('resize', () => {
+                if(renderer3D && container && container.clientWidth > 0) {
+                    camera3D.aspect = container.clientWidth / container.clientHeight;
+                    camera3D.updateProjectionMatrix();
+                    renderer3D.setSize(container.clientWidth, container.clientHeight);
+                }
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                if (autoRotateEnabled) {
+                    controls3D.autoRotate = true;
+                    controls3D.autoRotateSpeed = 4;
+                } else {
+                    controls3D.autoRotate = false;
+                }
+                
+                if(controls3D) controls3D.update();
+                updateStats();
+                if(renderer3D && scene3D && camera3D) renderer3D.render(scene3D, camera3D);
+            }
+            animate();
+        }
+
+        function loadModel(glbUrl) {
             const loader = new THREE.GLTFLoader();
             loader.load(glbUrl, (gltf) => {
                 currentModel3D = gltf.scene;
@@ -956,18 +1054,131 @@
                 currentModel3D.position.z += (currentModel3D.position.z - center.z);
 
                 const maxDim = Math.max(size.x, size.y, size.z);
-                camera3D.position.set(maxDim * 1.3, maxDim * 1.3, maxDim * 1.3);
+                const distance = maxDim * 1.5;
+                camera3D.position.set(distance, distance * 0.5, distance);
+                camera3D.lookAt(0, 0, 0);
                 controls3D.target.set(0, 0, 0);
                 controls3D.update();
 
                 scene3D.add(currentModel3D);
                 document.getElementById('viewerLoading').classList.add('hidden');
+                updateStats();
             }, undefined, (error) => {
                 console.error("Error loading 3D asset:", error);
                 alert("Failed to read the 3D .glb file: " + error.message);
                 close3DViewer();
             });
+        }
+
+        window.changeBackgroundColor = function(color) {
+            if (!scene3D) return;
+            
+            if (scene3D.background) scene3D.background.dispose();
+            if (gridHelper) scene3D.remove(gridHelper);
+
+            switch(color) {
+                case 'white':
+                    scene3D.background = new THREE.Color(0xffffff);
+                    break;
+                case 'blue':
+                    scene3D.background = new THREE.Color(0x1e40af);
+                    break;
+                case 'grid':
+                    scene3D.background = new THREE.Color(0x0a0a0a);
+                    gridHelper = new THREE.GridHelper(100, 10, 0x333333, 0x111111);
+                    scene3D.add(gridHelper);
+                    break;
+                default:
+                    scene3D.background = new THREE.Color(0x000000);
+            }
         };
+
+        window.toggleWireframe = function() {
+            wireframeMode = !wireframeMode;
+            if (currentModel3D) {
+                currentModel3D.traverse((node) => {
+                    if (node.isMesh) {
+                        node.material.wireframe = wireframeMode;
+                    }
+                });
+            }
+            document.getElementById('wireframeBtn')?.classList.toggle('bg-emerald-700');
+        };
+
+        window.resetCameraView = function() {
+            if (!currentModel3D) return;
+            
+            const box = new THREE.Box3().setFromObject(currentModel3D);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const distance = maxDim * 1.5;
+            
+            camera3D.position.set(distance, distance * 0.5, distance);
+            camera3D.lookAt(0, 0, 0);
+            controls3D.target.set(0, 0, 0);
+            controls3D.update();
+        };
+
+        window.zoomIn = function() {
+            const direction = camera3D.position.clone().normalize();
+            camera3D.position.copy(direction.multiplyScalar(camera3D.position.length() * 0.8));
+            controls3D.update();
+        };
+
+        window.zoomOut = function() {
+            const direction = camera3D.position.clone().normalize();
+            camera3D.position.copy(direction.multiplyScalar(camera3D.position.length() * 1.2));
+            controls3D.update();
+        };
+
+        window.toggleLighting = function() {
+            lightsEnabled = !lightsEnabled;
+            if (ambientLight) ambientLight.visible = lightsEnabled;
+            if (dirLight1) dirLight1.visible = lightsEnabled;
+            if (dirLight2) dirLight2.visible = lightsEnabled;
+        };
+
+        window.toggleAutoRotate = function() {
+            autoRotateEnabled = !autoRotateEnabled;
+            const btn = document.getElementById('autoRotateBtn');
+            btn.classList.toggle('bg-emerald-700');
+        };
+
+        window.downloadScreenshot = function() {
+            if (!renderer3D) return;
+            renderer3D.render(scene3D, camera3D);
+            const link = document.createElement('a');
+            link.href = renderer3D.domElement.toDataURL('image/png');
+            link.download = `structure_screenshot_${Date.now()}.png`;
+            link.click();
+        };
+
+        function updateStats() {
+            if (!currentModel3D || !camera3D) return;
+
+            let vertexCount = 0;
+            let triangleCount = 0;
+
+            currentModel3D.traverse((node) => {
+                if (node.isMesh && node.geometry) {
+                    if (node.geometry.attributes.position) {
+                        vertexCount += node.geometry.attributes.position.count;
+                    }
+                    if (node.geometry.index) {
+                        triangleCount += node.geometry.index.count / 3;
+                    }
+                }
+            });
+
+            document.getElementById('vertexCount').innerText = vertexCount.toLocaleString();
+            document.getElementById('triangleCount').innerText = Math.floor(triangleCount).toLocaleString();
+
+            const pos = camera3D.position;
+            document.getElementById('camPos').innerText = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+            
+            const zoom = (originalCameraZoom / camera3D.position.length()).toFixed(2);
+            document.getElementById('zoomLevel').innerText = zoom + 'x';
+        }
 
         window.close3DViewer = function() {
             document.getElementById('viewer3DModal').classList.add('hidden');
@@ -975,6 +1186,8 @@
                 scene3D.remove(currentModel3D);
                 currentModel3D = null;
             }
+            wireframeMode = false;
+            autoRotateEnabled = false;
         };
 
         window.deleteStructure = async function(id) {
