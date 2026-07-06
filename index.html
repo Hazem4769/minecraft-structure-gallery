@@ -94,7 +94,6 @@
     </div>
 
     <script>
-        // دمج مفاتيح الربط الخاصة بك هنا تلقائياً لمنع أي أخطاء تعديل
         const CLIENT_ID = '685022171093-l41q3uc7h19g8023ujvp9540qugkh4kj.apps.googleusercontent.com'; 
         const API_KEY = 'AlzaSyBqKDR9DBsalWv57_2EyciVdeMHmjtinz8';
         
@@ -111,21 +110,62 @@
 
         function gapiLoaded() { gapi.load('client', initializeGapiClient); }
         async function initializeGapiClient() { await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }); }
-        function gisLoaded() { tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPES, callback: (resp) => { if (resp.error) return; accessToken = resp.access_token; onAuthSuccess(); } }); }
+        
+        function gisLoaded() { 
+            tokenClient = google.accounts.oauth2.initTokenClient({ 
+                client_id: CLIENT_ID, 
+                scope: SCOPES, 
+                callback: (resp) => { 
+                    if (resp.error) return; 
+                    accessToken = resp.access_token; 
+                    
+                    // حفظ التوكن ووقت انتهاء الصلاحية عند نجاح تسجيل الدخول لأول مرة
+                    const expiryTime = Date.now() + (resp.expires_in * 1000);
+                    localStorage.setItem('hazem_gallery_token', accessToken);
+                    localStorage.setItem('hazem_gallery_expiry', expiryTime);
+                    
+                    onAuthSuccess(); 
+                } 
+            }); 
+            
+            // الفحص التلقائي لـ localStorage عند اكتمال تحميل المكتبة (حل مشكلة الريفرش)
+            checkSavedSession();
+        } 
+
+        // دالة لفحص وجود جلسة صالحة تلقائياً عند فتح الصفحة أو عمل Refresh
+        async function checkSavedSession() {
+            const savedToken = localStorage.getItem('hazem_gallery_token');
+            const expiryTime = localStorage.getItem('hazem_gallery_expiry');
+
+            if (savedToken && expiryTime && Date.now() < Number(expiryTime)) {
+                accessToken = savedToken;
+                // التأكد من تهيئة gapi أولاً إذا لم تكن قد اكتملت
+                if (typeof gapi !== 'undefined' && gapi.client) {
+                    onAuthSuccess();
+                } else {
+                    // إذا لم تجهز gapi بعد، ننتظر قليلاً ثم نشغلها
+                    setTimeout(checkSavedSession, 100);
+                }
+            }
+        }
+
         function handleAuthClick() { if (accessToken === null) { tokenClient.requestAccessToken({prompt: 'consent'}); } }
 
         async function onAuthSuccess() {
             document.getElementById('authBtn').innerText = "✅ Cloud Connected";
-            document.getElementById('authBtn').className = "bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl";
+            document.getElementById('authBtn').className = "bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2";
             statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500";
             submitBtn.disabled = false;
             submitBtn.innerText = "Publish to Cloud";
-            submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg";
+            submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg mt-2";
             
             await initCloudFolder();
         }
 
         async function initCloudFolder() {
+            // ضبط الـ Access Token الحالي في مكتبة gapi للتمكن من جلب البيانات
+            gapi.client.setToken({ access_token: accessToken });
+
             let res = await gapi.client.drive.files.list({ q: "name='Minecraft_Structures_Gallery' and mimeType='application/vnd.google-apps.folder' and trashed=false" });
             if (res.result.files.length > 0) {
                 folderId = res.result.files[0].id;
@@ -201,7 +241,7 @@
             const imgInput = document.getElementById('structImg').files[0];
             const fileInput = document.getElementById('structFile').files[0];
 
-            if(structures.some(s => s.id === id)) { alert("ID configuration duplicate detected."); return; }
+            if(structures.some(s => s.id === id)) { alert("ID configuration duplicate detected."); submitBtn.disabled = false; submitBtn.innerText = "Publish to Cloud"; return; }
 
             let cloudImgId = await uploadToDrive(imgInput, `img_${id}_${Date.now()}`);
             let cloudFileId = await uploadToDrive(fileInput, fileInput.name);
